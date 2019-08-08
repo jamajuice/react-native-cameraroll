@@ -388,8 +388,6 @@ RCT_EXPORT_METHOD(deletePhotos:(NSArray<NSString *>*)assets
   ];
 }
 
-}
-
 static void checkPhotoLibraryConfig()
 {
 #if RCT_DEV

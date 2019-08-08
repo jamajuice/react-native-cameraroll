@@ -370,18 +370,21 @@ RCT_EXPORT_METHOD(deletePhotos:(NSArray<NSString *>*)assets
                   reject:(RCTPromiseRejectBlock)reject)
 {
   NSArray<NSURL *> *assets_ = [RCTConvert NSURLArray:assets];
-  PHFetchResult<PHAsset *> *fetched =
-    [PHAsset fetchAssetsWithALAssetURLs:assets_ options:nil];
-    [PHAssetChangeRequest deleteAssets:fetched];
-  }
-  completionHandler:^(BOOL success, NSError *error) {
-    if (success == YES) {
-      resolve(@(success));
+  [
+    [PHPhotoLibrary sharedPhotoLibrary] performChanges:^{
+      PHFetchResult<PHAsset *> *fetched =
+      [PHAsset fetchAssetsWithALAssetURLs:assets_ options:nil];
+      [PHAssetChangeRequest deleteAssets:fetched];
     }
-    else {
-      reject(@"Couldn't delete", @"Couldn't delete assets", error);
+
+    completionHandler:^(BOOL success, NSError *error) {
+      if (success == YES) {
+        resolve(@(success));
+      }
+      else {
+        reject(@"Couldn't delete", @"Couldn't delete assets", error);
+      }
     }
-  }
   ];
 }
 

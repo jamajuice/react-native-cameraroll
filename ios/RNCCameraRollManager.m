@@ -33,8 +33,7 @@ RCT_ENUM_CONVERTER(PHAssetCollectionSubtype, (@{
    @"library": @(PHAssetCollectionSubtypeSmartAlbumUserLibrary),
    @"photo-stream": @(PHAssetCollectionSubtypeAlbumMyPhotoStream), // incorrect, but legacy
    @"photostream": @(PHAssetCollectionSubtypeAlbumMyPhotoStream),
-   @"saved-photos": @(PHAssetCollectionSubtypeAny), // incorrect, but legacy
-   @"savedphotos": @(PHAssetCollectionSubtypeAny), // This was ALAssetsGroupSavedPhotos, seems to have no direct correspondence in PHAssetCollectionSubtype
+   @"saved-photos": @(PHAssetCollectionSubtypeAny), // incorrect, but legacy correspondence in PHAssetCollectionSubtype
 }), PHAssetCollectionSubtypeAny, integerValue)
 
 
@@ -98,7 +97,7 @@ static void requestPhotoLibraryAccess(RCTPromiseRejectBlock reject, PhotosAuthor
 }
 
 RCT_EXPORT_METHOD(saveToCameraRoll:(NSURLRequest *)request
-                  type:(NSString *)type
+                  options:(NSDictionary *)options
                   resolve:(RCTPromiseResolveBlock)resolve
                   reject:(RCTPromiseRejectBlock)reject)
 {
@@ -110,6 +109,9 @@ RCT_EXPORT_METHOD(saveToCameraRoll:(NSURLRequest *)request
   // more ways of loading videos in the future.
   __block NSURL *inputURI = nil;
   __block UIImage *inputImage = nil;
+  __block PHFetchResult *photosAsset;
+  __block PHAssetCollection *collection;
+  __block PHObjectPlaceholder *placeholder;
 
   void (^saveBlock)(void) = ^void() {
     // performChanges and the completionHandler are called on
@@ -117,17 +119,20 @@ RCT_EXPORT_METHOD(saveToCameraRoll:(NSURLRequest *)request
     // for now since all JS is queued and executed on a single thread.
     // We should reevaluate this if that assumption changes.
     [[PHPhotoLibrary sharedPhotoLibrary] performChanges:^{
-      PHAssetChangeRequest *changeRequest;
-
-      // Defaults to "photo". `type` is an optional param.
-      if ([type isEqualToString:@"video"]) {
-        changeRequest = [PHAssetChangeRequest creationRequestForAssetFromVideoAtFileURL:inputURI];
+      PHAssetChangeRequest *assetRequest ;
+      if ([options[@"type"] isEqualToString:@"video"]) {
+        assetRequest = [PHAssetChangeRequest creationRequestForAssetFromVideoAtFileURL:inputURI];
       } else {
-        changeRequest = [PHAssetChangeRequest creationRequestForAssetFromImage:inputImage];
+        assetRequest = [PHAssetChangeRequest creationRequestForAssetFromImage:inputImage];
       }
 
-      placeholder = [changeRequest placeholderForCreatedAsset];
-    } completionHandler:^(BOOL success, NSError * _Nullable error) {
+      placeholder = [assetRequest placeholderForCreatedAsset];
+      if (![options[@"album"] isEqualToString:@""]) {
+        photosAsset = [PHAsset fetchAssetsInAssetCollection:collection options:nil];
+        PHAssetCollectionChangeRequest *albumChangeRequest = [PHAssetCollectionChangeRequest changeRequestForAssetCollection:collection assets:photosAsset];
+        [albumChangeRequest addAssets:@[placeholder]];
+      }
+    } completionHandler:^(BOOL success, NSError *error) {
       if (success) {
         NSString *uri = [NSString stringWithFormat:@"ph://%@", [placeholder localIdentifier]];
         resolve(uri);
@@ -137,10 +142,41 @@ RCT_EXPORT_METHOD(saveToCameraRoll:(NSURLRequest *)request
     }];
   };
 
-  void (^loadBlock)(void) = ^void() {
-    if ([type isEqualToString:@"video"]) {
-      inputURI = request.URL;
+  void (^saveWithOptions)(void) = ^void() {
+    if (![options[@"album"] isEqualToString:@""]) {
+
+      PHFetchOptions *fetchOptions = [[PHFetchOptions alloc] init];
+      fetchOptions.predicate = [NSPredicate predicateWithFormat:@"title = %@", options[@"album"] ];
+      collection = [PHAssetCollection fetchAssetCollectionsWithType:PHAssetCollectionTypeAlbum
+                                                            subtype:PHAssetCollectionSubtypeAny
+                                                            options:fetchOptions].firstObject;
+      // Create the album
+      if (!collection) {
+        [[PHPhotoLibrary sharedPhotoLibrary] performChanges:^{
+          PHAssetCollectionChangeRequest *createAlbum = [PHAssetCollectionChangeRequest creationRequestForAssetCollectionWithTitle:options[@"album"]];
+          placeholder = [createAlbum placeholderForCreatedAssetCollection];
+        } completionHandler:^(BOOL success, NSError *error) {
+          if (success) {
+            PHFetchResult *collectionFetchResult = [PHAssetCollection fetchAssetCollectionsWithLocalIdentifiers:@[placeholder.localIdentifier]
+                                                                                                        options:nil];
+            collection = collectionFetchResult.firstObject;
+            saveBlock();
+          } else {
+            reject(kErrorUnableToSave, nil, error);
+          }
+        }];
+      } else {
+        saveBlock();
+      }
+    } else {
       saveBlock();
+    }
+  };
+
+  void (^loadBlock)(void) = ^void() {
+    if ([options[@"type"] isEqualToString:@"video"]) {
+      inputURI = request.URL;
+      saveWithOptions();
     } else {
       [self.bridge.imageLoader loadImageWithURLRequest:request callback:^(NSError *error, UIImage *image) {
         if (error) {
@@ -149,7 +185,7 @@ RCT_EXPORT_METHOD(saveToCameraRoll:(NSURLRequest *)request
         }
 
         inputImage = image;
-        saveBlock();
+        saveWithOptions();
       }];
     }
   };
@@ -173,9 +209,9 @@ static void RCTResolvePromise(RCTPromiseResolveBlock resolve,
   resolve(@{
     @"edges": assets,
     @"page_info": @{
-      @"start_cursor": assets[0][@"node"][@"image"][@"uri"],
-      @"end_cursor": assets[assets.count - 1][@"node"][@"image"][@"uri"],
-      @"has_next_page": @(hasNextPage),
+        @"start_cursor": assets[0][@"node"][@"image"][@"uri"],
+        @"end_cursor": assets[assets.count - 1][@"node"][@"image"][@"uri"],
+        @"has_next_page": @(hasNextPage),
     }
   });
 }
@@ -334,20 +370,21 @@ RCT_EXPORT_METHOD(deletePhotos:(NSArray<NSString *>*)assets
                   reject:(RCTPromiseRejectBlock)reject)
 {
   NSArray<NSURL *> *assets_ = [RCTConvert NSURLArray:assets];
-  [[PHPhotoLibrary sharedPhotoLibrary] performChanges:^{
-      PHFetchResult<PHAsset *> *fetched =
-        [PHAsset fetchAssetsWithALAssetURLs:assets_ options:nil];
-      [PHAssetChangeRequest deleteAssets:fetched];
-    }
+  PHFetchResult<PHAsset *> *fetched =
+    [PHAsset fetchAssetsWithALAssetURLs:assets_ options:nil];
+    [PHAssetChangeRequest deleteAssets:fetched];
+  }
   completionHandler:^(BOOL success, NSError *error) {
-      if (success == YES) {
-     	    resolve(@(success));
-      }
-      else {
-	        reject(@"Couldn't delete", @"Couldn't delete assets", error);
-      }
+    if (success == YES) {
+      resolve(@(success));
     }
-    ];
+    else {
+      reject(@"Couldn't delete", @"Couldn't delete assets", error);
+    }
+  }
+  ];
+}
+
 }
 
 static void checkPhotoLibraryConfig()

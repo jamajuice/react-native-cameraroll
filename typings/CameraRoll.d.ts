@@ -63,6 +63,11 @@ export interface PhotoIdentifiersPage {
   },
 }
 
+export type SaveToCameraRollOptions = {
+  type?: 'photo' | 'video' | 'auto',
+  album?: string,
+};
+
 export interface CameraRollStatic {
   /**
    * `CameraRoll.saveImageWithTag()` is deprecated. Use `CameraRoll.saveToCameraRoll()` instead.
@@ -77,7 +82,12 @@ export interface CameraRollStatic {
   /**
    * Saves the photo or video to the camera roll or photo library.
    */
-  saveToCameraRoll: (tag: string, type?: 'photo' | 'video') => Promise<string>;
+  saveToCameraRoll(tag: string, type?: 'photo'|'video'): Promise<string>
+
+  /**
+   * Saves the photo or video to the camera roll or photo library.
+   */
+  save(tag: string, options?: SaveToCameraRollOptions): Promise<string>
 
   /**
    * Returns a Promise with photo identifier objects from the local camera
@@ -86,6 +96,6 @@ export interface CameraRollStatic {
   getPhotos: (params: GetPhotosParams) => Promise<PhotoIdentifiersPage>;
 }
 
-let CameraRoll: CameraRollStatic;
+declare let CameraRoll: CameraRollStatic;
 
 export default CameraRoll;

@@ -101,8 +101,6 @@ RCT_EXPORT_METHOD(saveToCameraRoll:(NSURLRequest *)request
                   resolve:(RCTPromiseResolveBlock)resolve
                   reject:(RCTPromiseRejectBlock)reject)
 {
-  __block PHObjectPlaceholder *placeholder;
-
   // We load images and videos differently.
   // Images have many custom loaders which can load images from ALAssetsLibrary URLs, PHPhotoLibrary
   // URLs, `data:` URIs, etc. Video URLs are passed directly through for now; it may be nice to support

@@ -100,12 +100,19 @@ export type PhotoIdentifiersPage = {
     end_cursor?: string,
   },
 };
-
 export type SaveToCameraRollOptions = {
   type?: 'photo' | 'video' | 'auto',
   album?: string,
 };
 
+export type GetAlbumsParams = {
+  assetType?: $Keys<typeof ASSET_TYPE_OPTIONS>,
+}
+
+export type Album = {
+  title: string,
+  count: number,
+}
 /**
  * `CameraRoll` provides access to the local camera roll or photo library.
  *
@@ -125,8 +132,13 @@ class CameraRoll {
     return this.saveToCameraRoll(tag, {type: 'photo'});
   }
 
-  static deletePhotos(photos: Array<string>) {
-    return RNCCameraRoll.deletePhotos(photos);
+  /**
+   * On iOS: requests deletion of a set of photos from the camera roll.
+   * On Android: Deletes a set of photos from the camera roll.
+   *
+   */
+  static deletePhotos(photoUris: Array<string>) {
+    return RNCCameraRoll.deletePhotos(photoUris);
   }
 
   /**
@@ -142,16 +154,14 @@ class CameraRoll {
       typeof tag === 'string',
       'CameraRoll.saveToCameraRoll must be a valid string.',
     );
-
     invariant(
       options.type === 'photo' ||
-      options.type === 'video' ||
-      options.type === 'auto' ||
-      options.type === undefined,
+        options.type === 'video' ||
+        options.type === 'auto' ||
+        options.type === undefined,
       `The second argument to saveToCameraRoll must be 'photo' or 'video' or 'auto'. You passed ${type ||
         'unknown'}`,
     );
-
     if (type === 'auto') {
       if (['mov', 'mp4'].indexOf(tag.split('.').slice(-1)[0]) >= 0) {
         type = 'video';
@@ -159,12 +169,16 @@ class CameraRoll {
         type = 'photo';
       }
     }
-
     return RNCCameraRoll.saveToCameraRoll(tag, {type, album});
   }
-
-  static saveToCameraRoll(tag: string, type?: photo | video) {
-    CameraRoll.save(tag, {type});
+  static saveToCameraRoll(
+    tag: string,
+    type?: 'photo' | 'video' | 'auto',
+  ): Promise<string> {
+    return CameraRoll.save(tag, {type});
+  }
+  static getAlbums(params?: GetAlbumsParams = { assetType: ASSET_TYPE_OPTIONS.All }): Promise<Album[]> {
+    return RNCCameraRoll.getAlbums(params);
   }
   /**
    * Returns a Promise with photo identifier objects from the local camera

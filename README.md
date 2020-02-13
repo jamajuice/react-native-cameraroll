@@ -1,6 +1,9 @@
 # `@react-native-community/cameraroll`
 
-[![CircleCI Status](https://img.shields.io/circleci/project/github/react-native-community/react-native-cameraroll/master.svg)](https://circleci.com/gh/react-native-community/workflows/react-native-cameraroll/tree/master) ![Supports Android and iOS](https://img.shields.io/badge/platforms-android%20|%20ios-lightgrey.svg) ![MIT License](https://img.shields.io/npm/l/@react-native-community/cameraroll.svg)
+[![CircleCI Status][circle-ci-badge]][circle-ci]
+![Supports Android and iOS][supported-os-badge]
+![MIT License][license-badge]
+[![Lean Core Badge][lean-core-badge]][lean-core-issue]
 
 ## Getting started
 
@@ -8,7 +11,7 @@
 
 ### Mostly automatic installation
 
-`$ react-native link @react-native-community/cameraroll`
+`$ react-native link @react-native-community/cameraroll && cd ios && pod install`
 
 ### Manual installation
 
@@ -71,7 +74,10 @@ On Android permission is required to read the external storage. Add below line t
 ### Methods
 
 * [`saveToCameraRoll`](#savetocameraroll)
+* [`save`](#save)
+* [`getAlbums`](#getalbums)
 * [`getPhotos`](#getphotos)
+* [`deletePhotos`](#deletephotos)
 
 ---
 
@@ -79,13 +85,21 @@ On Android permission is required to read the external storage. Add below line t
 
 ## Methods
 
+### `save()`
+
+Saves the photo or video of a particular type to an album. This function works the same as `saveToCameraRoll`, but it allows to specify a particular album you want to store the asset to.
+
+```javascript
+CameraRoll.save(tag, { type, album })
+```
+
 ### `saveToCameraRoll()`
 
 ```javascript
 CameraRoll.saveToCameraRoll(tag, [type]);
 ```
 
-Saves the photo or video to the camera roll or photo library.
+Saves the photo or video to the photo library.
 
 On Android, the tag must be a local image or video URI, such as `"file:///sdcard/img.png"`.
 
@@ -101,6 +115,27 @@ Returns a Promise which will resolve with the new URI.
 | ---- | ---------------------- | -------- | ---------------------------------------------------------- |
 | tag  | string                 | Yes      | See above.                                                 |
 | type | enum('photo', 'video') | No       | Overrides automatic detection based on the file extension. |
+
+---
+### `getAlbums()`
+
+```javascript
+CameraRoll.getAlbums(params);
+```
+Returns a Promise with a list of albums
+
+**Parameters:**
+
+* `assetType` : {string} : Specifies filter on asset type. Valid values are:
+  * `All` // default
+  * `Videos`
+  * `Photos`
+
+**Returns:**
+
+Array of `Album` object
+  * title: {string}
+  * count: {number}
 
 ---
 
@@ -134,6 +169,8 @@ Returns a Promise with photo identifier objects from the local camera roll of th
   * `Videos`
   * `Photos` // default
 * `mimeTypes` : {Array} : Filter by mimetype (e.g. image/jpeg).
+* `fromTime` : {timestamp} : Filter from date added.
+* `toTime` : {timestamp} : Filter to date added.
 
 Returns a Promise which when resolved will be of the following shape:
 
@@ -199,3 +236,31 @@ render() {
  );
 }
 ```  
+---
+### `deletePhotos()`
+
+```javascript
+CameraRoll.deletePhotos([uri]);
+```
+
+Requests deletion of photos in the camera roll.
+
+On Android, the uri must be a local image or video URI, such as `"file:///sdcard/img.png"`.
+
+On iOS, the uri can be any image URI (including local, remote asset-library and base64 data URIs) or a local video file URI. The user is presented with a dialog box that shows them the asset(s) and asks them to confirm deletion. This is not able to be bypassed as per Apple Developer guidelines. 
+
+Returns a Promise which will resolve when the deletion request is completed, or reject if there is a problem during the deletion. On iOS the user is able to cancel the deletion request, which causes a rejection, while on Android the rejection will be due to a system error.
+
+**Parameters:**
+
+| Name | Type                   | Required | Description                                                |
+| ---- | ---------------------- | -------- | ---------------------------------------------------------- |
+| uri  | string                 | Yes      | See above.                                                 |
+
+
+[circle-ci-badge]:https://img.shields.io/circleci/project/github/react-native-community/react-native-cameraroll/master.svg?style=flat-square
+[circle-ci]:https://circleci.com/gh/react-native-community/workflows/react-native-cameraroll/tree/master
+[supported-os-badge]:https://img.shields.io/badge/platforms-android%20|%20ios-lightgrey.svg?style=flat-square
+[license-badge]:https://img.shields.io/npm/l/@react-native-community/cameraroll.svg?style=flat-square
+[lean-core-badge]: https://img.shields.io/badge/Lean%20Core-Extracted-brightgreen.svg?style=flat-square
+[lean-core-issue]: https://github.com/facebook/react-native/issues/23313
